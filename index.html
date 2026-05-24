@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>House Expense Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --cream: #FAF7F2;
+    --warm-white: #FFFCF7;
+    --ink: #1A1512;
+    --ink-light: #4A3F35;
+    --terracotta: #C4602A;
+    --terracotta-light: #E8845A;
+    --terracotta-pale: #F5DDD3;
+    --sage: #7A9E7E;
+    --sage-pale: #E0EDE1;
+    --gold: #C9963A;
+    --gold-pale: #F5E9D3;
+    --border: #E0D8CE;
+    --shadow: rgba(26,21,18,0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: -200px; right: -200px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(196,96,42,0.07) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -200px; left: -200px;
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(122,158,126,0.08) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+
+  .page { display: none; position: relative; z-index: 1; animation: fadeUp 0.5s ease; }
+  .page.active { display: block; }
+  #page-welcome.active { display: flex; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── SETUP BANNER ── */
+  .setup-banner {
+    background: linear-gradient(135deg, #1a1512 0%, #2d2218 100%);
+    color: white;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 0.85rem;
+    position: relative;
+    z-index: 10;
+  }
+  .setup-banner.hidden { display: none; }
+  .setup-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #e06040;
+    flex-shrink: 0;
+    animation: pulse 1.5s infinite;
+  }
+  .setup-dot.connected { background: var(--sage); animation: none; }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .setup-banner span { flex: 1; }
+  .btn-setup-link {
+    padding: 7px 14px;
+    background: var(--terracotta);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+  }
+  .btn-setup-link:hover { background: var(--terracotta-light); }
+
+  /* ── WELCOME PAGE ── */
+  #page-welcome {
+    min-height: calc(100vh - 48px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .welcome-card {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 60px 56px;
+    max-width: 480px;
+    width: 90%;
+    box-shadow: 0 8px 48px var(--shadow);
+    text-align: center;
+  }
+
+  .logo-badge {
+    width: 72px; height: 72px;
+    background: var(--terracotta);
+    border-radius: 20px;
+    margin: 0 auto 28px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px;
+    box-shadow: 0 4px 20px rgba(196,96,42,0.3);
+  }
+
+  .welcome-card h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2rem;
+    line-height: 1.2;
+    margin-bottom: 10px;
+  }
+  .welcome-card p {
+    color: var(--ink-light);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 36px;
+  }
+
+  .field-label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 8px;
+    text-align: left;
+  }
+
+  .text-input {
+    width: 100%;
+    padding: 14px 18px;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    background: var(--cream);
+    color: var(--ink);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+    margin-bottom: 28px;
+  }
+  .text-input:focus {
+    border-color: var(--terracotta);
+    box-shadow: 0 0 0 3px rgba(196,96,42,0.1);
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 15px;
+    background: var(--terracotta);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+    box-shadow: 0 4px 16px rgba(196,96,42,0.3);
+  }
+  .btn-primary:hover { background: var(--terracotta-light); transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* ── TOP BAR ── */
+  .top-bar {
+    background: var(--warm-white);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 12px var(--shadow);
+  }
+  .top-bar-left { display: flex; align-items: center; gap: 14px; }
+  .avatar {
+    width: 40px; height: 40px;
+    background: var(--terracotta);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 1rem; flex-shrink: 0;
+  }
+  .top-bar-name { font-family: 'DM Serif Display', serif; font-size: 1.2rem; }
+  .top-bar-sub { font-size: 0.78rem; color: var(--ink-light); margin-top: 1px; }
+
+  .top-bar-actions { display: flex; gap: 10px; align-items: center; }
+
+  .btn-secondary {
+    padding: 9px 20px;
+    background: transparent;
+    color: var(--terracotta);
+    border: 1.5px solid var(--terracotta);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-secondary:hover { background: var(--terracotta-pale); }
+
+  .btn-download {
+    padding: 9px 20px;
+    background: var(--sage);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-download:hover { background: #5f8a63; transform: translateY(-1px); }
+
+  /* ── CONTAINER ── */
+  .container { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
+
+  .section-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 14px;
+    border-bottom: 1.5px solid var(--border);
+  }
+  .section-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .section-title { font-family: 'DM Serif Display', serif; font-size: 1.25rem; }
+  .section-hint { font-size: 0.78rem; color: var(--ink-light); margin-left: auto; font-style: italic; }
+
+  /* ── CATEGORY GRID ── */
+  .cat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+    margin-bottom: 32px;
+  }
+
+  .cat-item {
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    background: var(--warm-white);
+    cursor: pointer;
+    transition: all 0.2s;
+    overflow: hidden;
+  }
+  .cat-item:hover { border-color: var(--terracotta-light); box-shadow: 0 4px 16px rgba(196,96,42,0.1); transform: translateY(-1px); }
+  .cat-item.selected { border-color: var(--terracotta); background: #FFFAF8; box-shadow: 0 4px 20px rgba(196,96,42,0.15); }
+
+  .cat-header { display: flex; align-items: center; gap: 10px; padding: 13px 16px; user-select: none; }
+  .cat-checkbox {
+    width: 20px; height: 20px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all 0.2s; font-size: 11px; color: white;
+  }
+  .cat-item.selected .cat-checkbox { background: var(--terracotta); border-color: var(--terracotta); }
+  .cat-emoji { font-size: 18px; }
+  .cat-name { font-size: 0.88rem; font-weight: 500; color: var(--ink); flex: 1; line-height: 1.3; }
+
+  .cat-body { display: none; padding: 0 16px 14px; gap: 8px; flex-direction: column; }
+  .cat-item.selected .cat-body { display: flex; }
+
+  .amount-row {
+    display: flex; align-items: center;
+    background: var(--cream);
+    border: 1.5px solid var(--border);
+    border-radius: 10px; overflow: hidden; transition: border-color 0.2s;
+  }
+  .amount-row:focus-within { border-color: var(--terracotta); box-shadow: 0 0 0 2px rgba(196,96,42,0.1); }
+  .currency-tag {
+    padding: 0 12px;
+    font-weight: 600; font-size: 0.9rem; color: var(--terracotta);
+    background: var(--terracotta-pale);
+    align-self: stretch; display: flex; align-items: center;
+    border-right: 1.5px solid var(--border); user-select: none;
+  }
+  .amount-input {
+    flex: 1; padding: 9px 12px; border: none; outline: none;
+    background: transparent; font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem; color: var(--ink);
+  }
+  .amount-input::placeholder { color: #B0A89E; }
+  .comment-input {
+    width: 100%; padding: 8px 12px;
+    border: 1.5px solid var(--border); border-radius: 10px;
+    background: var(--cream); font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem; color: var(--ink-light); outline: none;
+    transition: border-color 0.2s; resize: none;
+  }
+  .comment-input:focus { border-color: var(--terracotta); box-shadow: 0 0 0 2px rgba(196,96,42,0.08); }
+  .comment-input::placeholder { color: #C0B8AE; font-style: italic; }
+
+  /* ── SUMMARY BAR ── */
+  .summary-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--ink);
+    padding: 16px 40px;
+    display: flex; align-items: center; gap: 20px;
+    z-index: 200;
+    box-shadow: 0 -4px 24px rgba(26,21,18,0.2);
+  }
+  .summary-text { color: rgba(255,255,255,0.7); font-size: 0.88rem; }
+  .summary-text strong { color: white; font-size: 1rem; }
+  .summary-total { margin-left: auto; text-align: right; }
+  .summary-total-label { color: rgba(255,255,255,0.6); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; }
+  .summary-total-amount { color: var(--terracotta-light); font-family: 'DM Serif Display', serif; font-size: 1.4rem; }
+
+  .btn-save {
+    padding: 12px 28px;
+    background: var(--terracotta); color: white;
+    border: none; border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s; white-space: nowrap; flex-shrink: 0;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .btn-save:hover { background: var(--terracotta-light); transform: translateY(-1px); }
+  .btn-save .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+  .btn-save.loading .spinner { display: block; }
+  .btn-save.loading .save-label { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── MODAL (URL setup) ── */
+  .modal-bg {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(26,21,18,0.6);
+    z-index: 500;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(3px);
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--warm-white);
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 560px; width: 92%;
+    box-shadow: 0 24px 80px rgba(26,21,18,0.3);
+    animation: fadeUp 0.3s ease;
+  }
+  .modal h2 { font-family: 'DM Serif Display', serif; font-size: 1.5rem; margin-bottom: 8px; }
+  .modal p { color: var(--ink-light); font-size: 0.9rem; line-height: 1.7; margin-bottom: 20px; }
+  .modal .step {
+    display: flex; gap: 14px; margin-bottom: 14px; align-items: flex-start;
+  }
+  .step-num {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--terracotta); color: white;
+    font-size: 0.78rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 2px;
+  }
+  .step-text { font-size: 0.88rem; color: var(--ink-light); line-height: 1.6; flex: 1; }
+  .step-text strong { color: var(--ink); }
+  .step-text code {
+    background: var(--cream); border: 1px solid var(--border);
+    padding: 2px 7px; border-radius: 5px;
+    font-size: 0.82rem; font-family: monospace; color: var(--terracotta);
+  }
+  .url-input-row { display: flex; gap: 10px; margin-top: 20px; }
+  .url-field {
+    flex: 1; padding: 12px 16px;
+    border: 1.5px solid var(--border); border-radius: 10px;
+    font-family: 'DM Sans', sans-serif; font-size: 0.88rem;
+    background: var(--cream); color: var(--ink); outline: none;
+  }
+  .url-field:focus { border-color: var(--terracotta); }
+  .btn-connect {
+    padding: 12px 20px;
+    background: var(--terracotta); color: white;
+    border: none; border-radius: 10px;
+    font-family: 'DM Sans', sans-serif; font-size: 0.88rem; font-weight: 600;
+    cursor: pointer; white-space: nowrap; transition: background 0.2s;
+  }
+  .btn-connect:hover { background: var(--terracotta-light); }
+  .btn-skip { margin-top: 12px; background: none; border: none; color: var(--ink-light); font-size: 0.82rem; cursor: pointer; text-decoration: underline; }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed; top: 24px; left: 50%;
+    transform: translateX(-50%) translateY(-80px);
+    background: var(--ink); color: white;
+    padding: 14px 24px; border-radius: 12px;
+    font-size: 0.9rem; font-weight: 500;
+    z-index: 999;
+    transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+    box-shadow: 0 8px 32px rgba(26,21,18,0.3);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: var(--sage); }
+  .toast.error { background: #C4402A; }
+
+  .section-block { margin-bottom: 40px; }
+  .month-row { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; }
+  .month-label { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-light); white-space: nowrap; }
+  .month-select {
+    padding: 9px 16px; border: 1.5px solid var(--border); border-radius: 10px;
+    background: var(--warm-white); font-family: 'DM Sans', sans-serif;
+    font-size: 0.92rem; color: var(--ink); outline: none; cursor: pointer; transition: border-color 0.2s;
+  }
+  .month-select:focus { border-color: var(--terracotta); }
+
+  @media (max-width: 600px) {
+    .top-bar { padding: 14px 18px; }
+    .container { padding: 24px 16px; }
+    .summary-bar { padding: 14px 18px; flex-wrap: wrap; }
+    .cat-grid { grid-template-columns: 1fr; }
+    .top-bar-actions .btn-download span { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SETUP BANNER -->
+<div class="setup-banner" id="setup-banner">
+  <div class="setup-dot" id="setup-dot"></div>
+  <span id="banner-text">Not connected to Google Sheets</span>
+  <button class="btn-setup-link" onclick="openModal()">Connect Sheet →</button>
+</div>
+
+<!-- WELCOME PAGE -->
+<div class="page active" id="page-welcome">
+  <div class="welcome-card">
+    <div class="logo-badge">🏡</div>
+    <h1>House Expense<br>Tracker</h1>
+    <p>Track shared household expenses for Divyesh, Ketan &amp; Jyoti — saved to Google Sheets, downloadable as Excel anytime.</p>
+    <label class="field-label" for="name-input">Your Name</label>
+    <input class="text-input" type="text" id="name-input" placeholder="e.g. Divyesh" autocomplete="off" />
+    <button class="btn-primary" id="btn-next" disabled>Continue →</button>
+  </div>
+</div>
+
+<!-- EXPENSE PAGE -->
+<div class="page" id="page-expense">
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <div class="avatar" id="avatar-initial">D</div>
+      <div>
+        <div class="top-bar-name" id="top-name">Divyesh</div>
+        <div class="top-bar-sub">Select categories to log expenses</div>
+      </div>
+    </div>
+    <div class="top-bar-actions">
+      <button class="btn-download" onclick="downloadExcel()">
+        <span>⬇</span><span>Download Excel</span>
+      </button>
+      <button class="btn-secondary" onclick="goBack()">← Change Name</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="month-row">
+      <span class="month-label">Logging for</span>
+      <select class="month-select" id="month-select">
+        <option value="June">June</option>
+        <option value="July">July</option>
+        <option value="August">August</option>
+      </select>
+    </div>
+
+    <div class="section-block">
+      <div class="section-header">
+        <div class="section-icon" style="background:var(--terracotta-pale)">💸</div>
+        <span class="section-title">Expense Categories</span>
+        <span class="section-hint">Tap a card to enter amount</span>
+      </div>
+      <div class="cat-grid" id="exp-grid"></div>
+    </div>
+
+    <div class="section-block">
+      <div class="section-header">
+        <div class="section-icon" style="background:var(--sage-pale)">💰</div>
+        <span class="section-title">Income</span>
+      </div>
+      <div class="cat-grid" id="inc-grid"></div>
+    </div>
+
+    <div class="section-block">
+      <div class="section-header">
+        <div class="section-icon" style="background:var(--gold-pale)">📈</div>
+        <span class="section-title">Investments</span>
+      </div>
+      <div class="cat-grid" id="inv-grid"></div>
+    </div>
+  </div>
+
+  <div class="summary-bar">
+    <div class="summary-text"><strong id="sel-count">0</strong> categories selected</div>
+    <div class="summary-total">
+      <div class="summary-total-label">Total Expenses</div>
+      <div class="summary-total-amount">₹<span id="total-amount">0</span></div>
+    </div>
+    <button class="btn-save" id="btn-save" onclick="saveToSheet()">
+      <div class="spinner"></div>
+      <span class="save-label">💾 Save to Sheet</span>
+    </button>
+  </div>
+</div>
+
+<!-- SETUP MODAL -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h2>Connect Google Sheets</h2>
+    <p>Follow these steps once — then every submission saves automatically to your shared sheet.</p>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-text">Go to <strong>sheets.google.com</strong> → create a new blank spreadsheet. Name it <strong>House Expenses</strong>.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-text">In the spreadsheet, go to <strong>Extensions → Apps Script</strong>. Delete everything in the editor and paste the script from the <strong>SETUP_GUIDE.txt</strong> file (provided alongside this app).</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-text">Click <strong>Deploy → New deployment</strong>. Choose type <strong>Web app</strong>. Set <em>Execute as</em> = <code>Me</code>, <em>Who has access</em> = <code>Anyone</code>. Click <strong>Deploy</strong> and copy the URL.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-text">Paste the Web App URL below and click <strong>Connect</strong>.</div>
+    </div>
+
+    <div class="url-input-row">
+      <input class="url-field" type="url" id="sheet-url-input" placeholder="https://script.google.com/macros/s/..." />
+      <button class="btn-connect" onclick="connectSheet()">Connect</button>
+    </div>
+    <div style="margin-top:8px; font-size:0.8rem; color:var(--ink-light)">The URL is saved in your browser — you only need to do this once.</div>
+    <br>
+    <button class="btn-skip" onclick="closeModal()">Skip for now (local Excel only)</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Categories ────────────────────────────────────────────────────────────────
+const EXPENSES = [
+  {name:"Light Bill",emoji:"💡"},{name:"Gas Bill",emoji:"🔥"},{name:"Rent",emoji:"🏠"},
+  {name:"House Help",emoji:"🧹"},{name:"Milk",emoji:"🥛"},{name:"Newspaper",emoji:"📰"},
+  {name:"Ironing",emoji:"👕"},{name:"House Related Shopping",emoji:"🛒"},
+  {name:"Mangoes",emoji:"🥭"},{name:"Fruits, Veggies, Atta, Groceries",emoji:"🥦"},
+  {name:"Snacks",emoji:"🍿"},{name:"Electronics",emoji:"📱"},{name:"Furniture",emoji:"🛋️"},
+  {name:"Repair Work",emoji:"🔧"},{name:"Baa Medicines",emoji:"💊"},
+  {name:"Our Medical Expense",emoji:"🏥"},{name:"Shopping",emoji:"🛍️"},
+  {name:"Car Expense",emoji:"🚗"},{name:"Bike Expense",emoji:"🏍️"},
+  {name:"Fuel Expense",emoji:"⛽"},{name:"Term Insurance",emoji:"🛡️"},
+  {name:"Health Insurance",emoji:"❤️‍🩹"},{name:"Misc.",emoji:"📦"},
+  {name:"Loan",emoji:"🏦"},{name:"Cash for Use",emoji:"💵"},
+  {name:"Cash Carry Forwarded",emoji:"➡️"},
+];
+const INCOME = [{name:"Salary",emoji:"💼"},{name:"Others",emoji:"💹"}];
+const INVESTMENTS = [{name:"Stocks",emoji:"📊"},{name:"MFs (Mutual Funds)",emoji:"📉"},{name:"Others",emoji:"🏅"}];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let userName = '';
+let selections = {};
+let sheetUrl = localStorage.getItem('houseExpenseSheetUrl') || '';
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  updateBanner();
+  autoSelectMonth();
+  const ni = document.getElementById('name-input');
+  ni.addEventListener('input', () => {
+    document.getElementById('btn-next').disabled = ni.value.trim().length < 1;
+  });
+  ni.addEventListener('keydown', e => { if (e.key === 'Enter' && ni.value.trim()) goToExpense(); });
+  document.getElementById('btn-next').addEventListener('click', goToExpense);
+});
+
+function updateBanner() {
+  const dot = document.getElementById('setup-dot');
+  const text = document.getElementById('banner-text');
+  const banner = document.getElementById('setup-banner');
+  if (sheetUrl) {
+    dot.classList.add('connected');
+    text.textContent = '✓ Connected to Google Sheets';
+    document.querySelector('.btn-setup-link').textContent = 'Change';
+    banner.style.background = 'linear-gradient(135deg, #2a3d2a 0%, #1e2e1e 100%)';
+  } else {
+    dot.classList.remove('connected');
+    text.textContent = 'Not connected to Google Sheets — entries save locally only';
+    document.querySelector('.btn-setup-link').textContent = 'Connect Sheet →';
+    banner.style.background = '';
+  }
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────────
+function goToExpense() {
+  userName = document.getElementById('name-input').value.trim();
+  document.getElementById('top-name').textContent = userName;
+  document.getElementById('avatar-initial').textContent = userName.charAt(0).toUpperCase();
+  document.getElementById('page-welcome').classList.remove('active');
+  document.getElementById('page-expense').classList.add('active');
+  buildGrids();
+}
+
+function goBack() {
+  document.getElementById('page-expense').classList.remove('active');
+  document.getElementById('page-welcome').classList.add('active');
+  selections = {};
+}
+
+// ── Grids ─────────────────────────────────────────────────────────────────────
+function buildGrids() {
+  buildGrid('exp-grid', EXPENSES, 'exp');
+  buildGrid('inc-grid', INCOME, 'inc');
+  buildGrid('inv-grid', INVESTMENTS, 'inv');
+}
+
+function buildGrid(containerId, items, prefix) {
+  const grid = document.getElementById(containerId);
+  grid.innerHTML = '';
+  items.forEach(item => {
+    const key = `${prefix}||${item.name}`;
+    const card = document.createElement('div');
+    card.className = 'cat-item';
+    card.dataset.key = key;
+    const safeId = key.replace(/[^a-zA-Z0-9]/g, '_');
+    card.innerHTML = `
+      <div class="cat-header" onclick="toggleCat('${key}')">
+        <div class="cat-checkbox" id="chk_${safeId}">✓</div>
+        <span class="cat-emoji">${item.emoji}</span>
+        <span class="cat-name">${item.name}</span>
+      </div>
+      <div class="cat-body">
+        <div class="amount-row">
+          <span class="currency-tag">₹</span>
+          <input class="amount-input" type="number" min="0" placeholder="Enter amount"
+            id="amt_${safeId}" oninput="updateSel('${key}')"/>
+        </div>
+        <textarea class="comment-input" rows="2" placeholder="Optional comment…"
+          id="cmt_${safeId}" oninput="updateSel('${key}')"></textarea>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+function toggleCat(key) {
+  const card = document.querySelector(`.cat-item[data-key="${key}"]`);
+  const isSelected = card.classList.contains('selected');
+  const safeId = key.replace(/[^a-zA-Z0-9]/g, '_');
+  if (isSelected) {
+    card.classList.remove('selected');
+    delete selections[key];
+    document.getElementById(`amt_${safeId}`).value = '';
+    document.getElementById(`cmt_${safeId}`).value = '';
+  } else {
+    card.classList.add('selected');
+    selections[key] = { amount: '', comment: '' };
+    setTimeout(() => document.getElementById(`amt_${safeId}`).focus(), 50);
+  }
+  updateSummary();
+}
+
+function updateSel(key) {
+  if (selections[key] === undefined) return;
+  const safeId = key.replace(/[^a-zA-Z0-9]/g, '_');
+  selections[key] = {
+    amount: document.getElementById(`amt_${safeId}`).value,
+    comment: document.getElementById(`cmt_${safeId}`).value
+  };
+  updateSummary();
+}
+
+function updateSummary() {
+  const expKeys = Object.keys(selections).filter(k => k.startsWith('exp||'));
+  const total = expKeys.reduce((s, k) => s + (parseFloat(selections[k].amount) || 0), 0);
+  document.getElementById('sel-count').textContent = Object.keys(selections).length;
+  document.getElementById('total-amount').textContent = total.toLocaleString('en-IN');
+}
+
+// ── Save to Google Sheet ───────────────────────────────────────────────────────
+async function saveToSheet() {
+  if (Object.keys(selections).length === 0) {
+    showToast('⚠️ Select at least one category first.', 'error'); return;
+  }
+  if (!sheetUrl) {
+    showToast('⚠️ Not connected to Google Sheets. Saving as Excel only.', 'error');
+    downloadExcel(); return;
+  }
+
+  const btn = document.getElementById('btn-save');
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  const month = document.getElementById('month-select').value;
+  const sectionMap = { exp: 'Expenses', inc: 'Income', inv: 'Investments' };
+  const rows = [];
+  const timestamp = new Date().toLocaleString('en-IN');
+
+  Object.keys(selections).forEach(key => {
+    const [prefix, catName] = key.split('||');
+    rows.push({
+      timestamp,
+      name: userName,
+      month,
+      section: sectionMap[prefix],
+      category: catName,
+      amount: selections[key].amount === '' ? '' : Number(selections[key].amount),
+      comment: selections[key].comment || ''
+    });
+  });
+
+  try {
+    await fetch(sheetUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows })
+    });
+    showToast('✅ Saved to Google Sheets!', 'success');
+    // Reset
+    Object.keys(selections).forEach(key => {
+      const card = document.querySelector(`.cat-item[data-key="${key}"]`);
+      if (card) {
+        card.classList.remove('selected');
+        const safeId = key.replace(/[^a-zA-Z0-9]/g, '_');
+        document.getElementById(`amt_${safeId}`).value = '';
+        document.getElementById(`cmt_${safeId}`).value = '';
+      }
+    });
+    selections = {};
+    updateSummary();
+  } catch (e) {
+    showToast('❌ Failed to save. Check your connection.', 'error');
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+
+// ── Download Excel ────────────────────────────────────────────────────────────
+function downloadExcel() {
+  if (Object.keys(selections).length === 0) {
+    showToast('⚠️ Select at least one category first.', 'error'); return;
+  }
+  const month = document.getElementById('month-select').value;
+  const sectionMap = { exp: 'Expenses', inc: 'Income', inv: 'Investments' };
+  const rows = [["Timestamp","Name","Month","Section","Category","Amount (₹)","Comments"]];
+
+  Object.keys(selections).forEach(key => {
+    const [prefix, catName] = key.split('||');
+    rows.push([
+      new Date().toLocaleString('en-IN'),
+      userName, month, sectionMap[prefix], catName,
+      selections[key].amount === '' ? '' : Number(selections[key].amount),
+      selections[key].comment || ''
+    ]);
+  });
+
+  const expTotal = Object.keys(selections).filter(k=>k.startsWith('exp||'))
+    .reduce((s,k)=>s+(parseFloat(selections[k].amount)||0),0);
+  rows.push([]);
+  rows.push(["","","","","Total Expenses", expTotal, ""]);
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:22},{wch:16},{wch:10},{wch:14},{wch:35},{wch:14},{wch:30}];
+  XLSX.utils.book_append_sheet(wb, ws, "Expenses");
+  XLSX.writeFile(wb, `House_Expenses_${userName}_${month}_${new Date().getFullYear()}.xlsx`);
+  showToast('📥 Excel downloaded!', 'success');
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('sheet-url-input').value = sheetUrl;
+  document.getElementById('modal-bg').classList.add('open');
+}
+function closeModal() { document.getElementById('modal-bg').classList.remove('open'); }
+function connectSheet() {
+  const val = document.getElementById('sheet-url-input').value.trim();
+  if (!val.startsWith('https://script.google.com')) {
+    showToast('❌ Please paste a valid Apps Script URL.', 'error'); return;
+  }
+  sheetUrl = val;
+  localStorage.setItem('houseExpenseSheetUrl', sheetUrl);
+  updateBanner();
+  closeModal();
+  showToast('✅ Connected to Google Sheets!', 'success');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3400);
+}
+
+function autoSelectMonth() {
+  const names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const cur = names[new Date().getMonth()];
+  const sel = document.getElementById('month-select');
+  for (let opt of sel.options) { if (opt.value === cur) { opt.selected = true; break; } }
+}
+</script>
+</body>
+</html>
